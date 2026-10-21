@@ -15,15 +15,28 @@ from write_pdf import *
 from langgraph.prebuilt import ToolNode
 
 tools = [arxiv_search, read_pdf, render_latex_pdf]
-tool_node = ToolNode(tools)
+tool_node = ToolNode(tools, handle_tool_errors=True)
 
 
-# Step3: Setup LLM
+# Step3: Setup LLM (provider chosen via .env)
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
 
-model = ChatGoogleGenerativeAI(model="gemini-3.7-flash", api_key=os.getenv("GOOGLE_API_KEY")).bind_tools(tools)
-model = model.bind_tools(tools)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()   # "gemini" or "groq"
+
+
+def get_model():
+    if LLM_PROVIDER == "groq":
+        from langchain_groq import ChatGroq
+        name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        return ChatGroq(model=name, api_key=os.getenv("GROQ_API_KEY"), temperature=0)
+    if LLM_PROVIDER == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        name = os.getenv("GEMINI_MODEL", "gemini-3.7-flash")
+        return ChatGoogleGenerativeAI(model=name, api_key=os.getenv("GOOGLE_API_KEY"))
+    raise ValueError(f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. Use 'gemini' or 'groq'.")
+
+
+model = get_model().bind_tools(tools)
 
 # Step4: Setup graph
 
@@ -52,9 +65,13 @@ workflow.add_edge("tools", "agent")
 
 from langgraph.checkpoint.memory import MemorySaver
 checkpointer = MemorySaver()
-config = {"configurable": {"thread_id": 222222}}
 
 graph = workflow.compile(checkpointer=checkpointer)
+
+
+def make_config(thread_id: str) -> dict:
+    """One conversation thread per Streamlit session."""
+    return {"configurable": {"thread_id": thread_id}}
 
 # Step5: TESTING
 INITIAL_PROMPT = """

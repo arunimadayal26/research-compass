@@ -1,7 +1,15 @@
-from langchain_core.tools import tool
 import io
+import os
+import time
+
 import PyPDF2
 import requests
+from langchain_core.tools import tool
+
+# ~4 chars per token. Lower this if your LLM provider has a small tokens-per-minute limit.
+MAX_CHARS = int(os.getenv("READ_PDF_MAX_CHARS", "20000"))
+MAX_PAGES = 15
+
 
 @tool
 def read_pdf(url: str) -> str:
@@ -11,20 +19,29 @@ def read_pdf(url: str) -> str:
         url: The URL of the PDF file to read
 
     Returns:
-        The extracted text content from the PDF
+        The extracted text content from the PDF (truncated for long papers)
     """
+    t0 = time.monotonic()
     try:
-        response = requests.get(url)
-        pdf_file = io.BytesIO(response.content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        num_pages = len(pdf_reader.pages)
-        text = ""
-        for i, page in enumerate(pdf_reader.pages, 1):
-            print(f"Extracting text from page {i}/{num_pages}")
-            text += page.extract_text() + "\n"
+        response = requests.get(
+            url,
+            headers={"User-Agent": "research-compass/0.1"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        reader = PyPDF2.PdfReader(io.BytesIO(response.content))
+        total = len(reader.pages)
 
-        print(f"Successfully extracted {len(text)} characters of text from PDF")
-        return text.strip()
+        text = ""
+        for i, page in enumerate(reader.pages[:MAX_PAGES], 1):
+            text += (page.extract_text() or "") + "\n"
+            if len(text) >= MAX_CHARS:
+                break
+
+        text = text[:MAX_CHARS].strip()
+        note = f"\n\n[Truncated: read first {min(MAX_PAGES, total)} of {total} pages]" if total > MAX_PAGES or len(text) >= MAX_CHARS else ""
+        print(f"read_pdf: {len(text)} chars in {time.monotonic() - t0:.1f}s")
+        return text + note
     except Exception as e:
-        print(f"Error reading PDF: {str(e)}")
-        raise
+        print(f"Error reading PDF: {e}")
+        return f"Could not read PDF: {e}"

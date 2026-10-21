@@ -40,8 +40,9 @@ def render_latex_pdf(latex_content: str) -> str:
                 )
 
         final_pdf = output_dir / pdf_filename
-        if not final_pdf.exists():
-            raise FileNotFoundError("PDF file was not generated")
+        if result.returncode != 0 or not final_pdf.exists():
+            # Surface the LaTeX error so the agent can fix its own .tex and retry
+            raise RuntimeError(f"LaTeX compilation failed:\n{result.stderr[-1500:]}")
 
         print(f"Successfully generated PDF at {final_pdf}")
         return str(final_pdf)
