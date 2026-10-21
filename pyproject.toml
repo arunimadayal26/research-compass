@@ -1,0 +1,26 @@
+[project]
+name = "research-compass"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "arunimadayal26", email = "arunimadayal2608@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.4.6",
+    "langchain-core>=1.6.12",
+    "langchain-google-genai>=4.4.2",
+    "langgraph>=1.2.16",
+    "pypdf2>=3.0.1",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+    "streamlit>=1.66.0",
+]
+
+[project.scripts]
+research-compass = "research_compass:main"
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
